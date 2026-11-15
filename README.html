@@ -116,9 +116,9 @@ a{color:var(--brand)}li{margin:3px 0}
 </tr>
 <tr>
 <td>Tool accounts + API tokens</td>
-<td>Required</td>
-<td>Task tool (+ test tool, docs, Figma, code host if used)</td>
-<td>The wizard shows how to create each token</td>
+<td>Required for every connected tool (task tool, test tool, Confluence, Figma, code host…)</td>
+<td>The agents act on your behalf through these tokens</td>
+<td>The wizard asks for each one, links to the page where you create it, and won't continue without it</td>
 </tr>
 <tr>
 <td>Database login (+ VPN if needed)</td>
@@ -152,7 +152,7 @@ a{color:var(--brand)}li{margin:3px 0}
 <li><strong>Design artifacts</strong> (Agent 1, pick several): Figma (read from links), Adobe XD, Sketch, Zeplin, Miro / wireframes, screenshots / PDF mockups (exported as images), or &quot;no designs&quot;</li>
 <li><strong>Code changes</strong> (Agent 1): code host for commits and PRs linked to the ticket (read-only)</li>
 <li><strong>Test automation</strong>: existing? → framework (BDD or not), repo, feature/step folders, delivery (PR / branch / local), automation owner. Not yet? → planned or not.</li>
-<li><strong>Test management</strong>: only compatible tools are offered (Azure Test Plans needs Azure Boards; Xray/Zephyr need Jira), TestRail, Qase, or CSV import files for anything else</li>
+<li><strong>Test management</strong>: only compatible tools are offered (Azure Test Plans needs Azure Boards; Xray/Zephyr need Jira), TestRail, Qase, <strong>Confluence pages</strong> (one page per requirement, a section per suite, a test-case table; QAs tag cases for automation in the table), or CSV import files for anything else</li>
 <li><strong>Query Runner</strong> (misc tool): database engine → sign-in method (SQL login, Entra ID, Windows) → environments (server, port, database, &quot;allow data changes&quot;, reachability check; production is always read-only) → VPN → where saved queries come from (examples, a folder of .sql files, or the automation repo)</li>
 <li><strong>Bug Filing</strong> (misc tool): bug types and &quot;closed&quot; states → severity / priority / environment fields and allowed values (pre-filled per tool) → defaults (area, triage owner, tags) → link to the story, duplicate check → sections every bug must contain</li>
 <li><strong>QA lead setup</strong>: roster with subject/reserved keywords, bug-author routing, audit scope; <strong>Bug Report</strong>: bug types, closed states, severity order, where &quot;module&quot; comes from, breakdowns, default scope, optional Confluence publishing</li>

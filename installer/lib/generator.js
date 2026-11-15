@@ -88,6 +88,7 @@ function normalize(input) {
   const tt = byId(TEST_TOOLS, cfg.testManagement?.tool);
   if (tt.requires && !tt.requires.includes(cfg.taskManagement?.tool)) warnings.push(`${tt.label} normally needs ${tt.requires.join('/')} as the task tool.`);
   if (cfg.testManagement?.tool === 'csv') decisions.push('No test management API → Agent 2 writes an import file per requirement; Agent 3 reads it back from output/.');
+  if (cfg.testManagement?.tool === 'confluence') decisions.push(`Test plans live in Confluence (space ${cfg.testManagement.spaceKey || '?'}): Agent 2 creates one page per requirement with a section per suite and a test-case table; QAs add the automation tag in the Tags column and Agent 3 reads the page back.`);
 
   // Requirement docs + designs: multi-source
   cfg.requirementDocs = toSources(cfg.requirementDocs, DOC_TOOLS);

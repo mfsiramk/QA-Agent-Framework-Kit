@@ -77,6 +77,7 @@ const TEST_TOOLS = [
   { id: 'zephyr-scale', label: 'Zephyr Scale (Jira Cloud)', icon: '⚡', requires: ['jira'], vocab: { plan: 'folder', suite: 'sub-folder', case: 'test case' } },
   { id: 'testrail', label: 'TestRail', icon: '🛤️', requires: null, vocab: { plan: 'section (+ milestone)', suite: 'sub-section', case: 'case' } },
   { id: 'qase', label: 'Qase', icon: '✅', requires: null, vocab: { plan: 'suite', suite: 'child suite', case: 'case' } },
+  { id: 'confluence', label: 'Confluence pages', icon: '📘', requires: null, desc: 'One page per requirement: a section per suite, a table of test cases. QAs tag cases for automation right in the table.', vocab: { plan: 'test plan page', suite: 'section', case: 'table row' } },
   { id: 'csv', label: 'No tool / Excel & CSV import (qTest, PractiTest, others)', icon: '📄', requires: null, vocab: { plan: 'import file', suite: 'section column', case: 'row' },
     formats: [{ id: 'generic', label: 'Generic CSV' }, { id: 'xray', label: 'Xray CSV importer' }, { id: 'zephyr-scale', label: 'Zephyr Scale CSV' }, { id: 'testrail', label: 'TestRail CSV' }, { id: 'qtest', label: 'qTest Excel/CSV' }, { id: 'azure-test-plans', label: 'Azure Test Plans CSV' }] },
 ];
