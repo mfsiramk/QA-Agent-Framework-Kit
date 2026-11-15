@@ -1,0 +1,24 @@
+{
+  "name": "qa-agent-framework",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI-assisted QA agents: test case generation, test plan creation, feature file generation, QA assignment and compliance audit. Tool-agnostic via adapters.",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "verify": "node scripts/verify-setup.js",
+    "agent1:fetch": "node scripts/agents/agent1-fetch.js",
+    "agent1:lint": "node scripts/agents/agent1-validate-and-lint.js",
+    "agent1:excel": "node scripts/agents/agent1-build-excel.js",
+    "agent2": "node scripts/agents/agent2-push-test-plan.js",
+    "agent3": "node scripts/agents/agent3-generate-feature.js",
+    "agent3:push": "node scripts/agents/agent3-push-feature.js",
+    "sync-automation": "node scripts/automation/sync-automation-repo.js",
+    "step-library": "node scripts/automation/build-step-library.js",
+    "qa-assignment": "node scripts/lead/qa-assignment-plan.js",
+    "qa-assignment:apply": "node scripts/lead/qa-assignment-apply.js",
+    "audit": "node scripts/lead/qa-audit.js"
+  },
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  }
+}

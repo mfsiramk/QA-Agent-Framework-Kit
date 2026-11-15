@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QA Agent Framework - Setup | Mindfire Solutions</title>
+  <link rel="icon" type="image/webp" href="/assets/mindfire-logo.webp">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <img class="brand-logo" src="/assets/mindfire-logo.webp" alt="Mindfire Solutions" width="120" height="48">
+      <span class="brand-divider" aria-hidden="true"></span>
+      <span class="brand-name">QA Agent Framework <span class="muted">· Setup wizard</span></span>
+    </div>
+    <div class="top-actions"><button class="ghost" id="loadBtn" type="button">Load previous answers</button></div>
+  </header>
+  <div class="layout">
+    <nav class="steps" id="steps" aria-label="Setup steps"></nav>
+    <main>
+      <section id="view" class="view" aria-live="polite"></section>
+      <footer class="nav">
+        <button class="ghost" id="back" type="button">← Back</button>
+        <div class="spacer"></div>
+        <span class="err" id="navErr"></span>
+        <button id="next" type="button">Next →</button>
+      </footer>
+    </main>
+  </div>
+  <footer class="site-footer">
+    <img class="footer-logo" src="/assets/mindfire-logo.webp" alt="Mindfire Solutions" width="60" height="24">
+    <span>© <span id="year">2026</span> Mindfire Solutions. All rights reserved.</span>
+    <span class="muted">QA Agent Framework</span>
+  </footer>
+  <dialog id="dlg"><form method="dialog"><h3 id="dlgTitle"></h3><pre id="dlgBody"></pre><div class="right"><button>Close</button></div></form></dialog>
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+  <script src="/app.js"></script>
+</body>
+</html>
