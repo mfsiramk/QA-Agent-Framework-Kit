@@ -66,3 +66,7 @@ th .tip{margin-left:4px}
 label.check.full{grid-column:1/-1}
 table.roster input[type=checkbox]{width:18px;height:18px}
 .token-call a{font-weight:600}
+.section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:26px}
+.section-head h2{margin:0}
+.check.core{cursor:default;background:#f8fafc}
+#skip{white-space:nowrap}
