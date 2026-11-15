@@ -8,6 +8,7 @@
     step: 0,
     visited: new Set(['prereq']),
     prevSecrets: new Set(), // token names kept in the .env of a previous install (Load previous answers)
+    skipped: new Set(), // optional modules the user skipped (shown on Review)
     sys: null,
     target: '',
     options: { mcp: false },
@@ -15,7 +16,7 @@
     conn: {}, // kind → { ok, message, fix, at }
     config: {
       organization: { company: '', product: '', shortCode: '' },
-      modules: { agent1: true, agent2: true, agent3: true, qaAssignment: false, qaAudit: false },
+      modules: { agent1: true, agent2: true, agent3: true, queryRunner: true, bugFiling: true, qaAssignment: true, qaAudit: true, bugReport: true },
       assistants: ['claude-code'],
       taskManagement: { tool: '', fields: {} },
       testManagement: { tool: '', automationTag: 'Automation' },
@@ -40,6 +41,21 @@
   const m = () => C.modules;
   const anyAgent = () => m().agent1 || m().agent2 || m().agent3;
   const lead = () => m().qaAssignment || m().qaAudit || m().bugReport;
+  const CORE = ['agent1', 'agent2', 'agent3']; // always set up; everything else is optional and skippable
+  const MODULE_LABEL = (id) => (S.cat.modules.find((x) => x.id === id) || {}).label || id;
+  /** Optional modules that will not be installed (skipped or unticked). */
+  const notSetUp = () => S.cat.modules.filter((x) => !CORE.includes(x.id) && !m()[x.id]).map((x) => x.id);
+  /** Skip optional modules: switch them off and remember them for the Review page. */
+  function skipModules(ids) { ids.forEach((id) => { m()[id] = false; S.skipped.add(id); }); }
+  /** Section heading with its own Skip button (used where one step holds several optional tools). */
+  function sectionHead(title, moduleId, tip) {
+    return h('div', { class: 'section-head' }, h('h2', {}, title, tip ? tipIcon(tip) : null),
+      h('button', { type: 'button', class: 'ghost small', title: `Don't set up ${MODULE_LABEL(moduleId)} now`, onclick: () => {
+        const stepId = visible()[S.step]?.id;
+        skipModules([moduleId]); $('navErr').textContent = '';
+        if (visible()[S.step]?.id !== stepId) go(S.step); else render(); // last section skipped → step is gone, move on
+      } }, 'Skip'));
+  }
   const needsTest = () => m().agent2 || m().agent3 || m().qaAudit;
   const automationInScope = () => C.automation.status === 'existing' || (C.automation.status === 'none' && C.automation.planned === true);
 
@@ -311,7 +327,7 @@
       render();
     };
     return [
-      h('h2', {}, '🐞 Bug report', tipIcon('A read-only report the lead can ask for any time: "bug report for release 12", "open bugs", "bugs in the last 30 days". HTML + Excel; nothing is changed in the tool.')),
+      sectionHead('🐞 Bug Report', 'bugReport', 'A read-only report the lead can ask for any time: "bug report for release 12", "open bugs", "bugs in the last 30 days". HTML + Excel; nothing is changed in the tool.'),
       h('div', { class: 'panel' }, h('div', { class: 'grid' },
         listField('Bug types to include', 'bugReport.types', { placeholder: 'Bug, Prod Bug', tip: 'Every item type that counts as a bug, exactly as named in your tool (e.g. Bug, Test Bug, Prod Bug, UAT Bug).' }),
         listField('States that mean "closed"', 'bugReport.closedStates', { placeholder: 'Closed, Done', tip: 'Anything not in this list counts as open. Include states like Resolved if your team treats them as done.' }),
@@ -527,25 +543,22 @@
     {
       id: 'modules', title: 'What to set up', show: () => true,
       render: () => {
-        const notes = [];
-        if (m().agent3 && !m().agent2) notes.push('Agent 3 reads the test plans Agent 2 creates - Agent 2 will be switched on.');
-        if (m().agent2 && !m().agent1) notes.push('Agent 2 without Agent 1: your QAs will supply their own test-case Excel in the same column layout.');
-        if (m().qaAudit && !m().agent2) notes.push('QA Audit checks whether Agent 2 / Agent 3 were used - it needs Agent 2.');
-        const group = (role, grp) => S.cat.modules.filter((x) => x.role === role && (x.group || '') === (grp || '')).map((x) => checkbox(x.label, x.desc, `modules.${x.id}`, { onchange: () => {
-          if (x.id === 'agent3' && m().agent3) m().agent2 = true;
-          if (x.id === 'qaAudit' && m().qaAudit) m().agent2 = true;
-          render();
-        } }));
+        CORE.forEach((id) => { m()[id] = true; });
+        const core = S.cat.modules.filter((x) => CORE.includes(x.id)).map((x) => h('div', { class: 'check core' },
+          h('input', { type: 'checkbox', checked: true, disabled: true, 'aria-label': `${x.label} (always included)` }),
+          h('div', {}, h('div', { class: 'b' }, h('b', {}, x.label), h('span', { class: 'pill ok', style: 'margin-left:8px' }, 'Always included'), tipIcon(TIPS[`modules.${x.id}`])),
+            h('div', { class: 'd' }, x.desc, x.id === 'agent3' ? ' (Switched off automatically if you have no test automation and none is planned.)' : ''))));
+        const optional = (role, grp) => S.cat.modules.filter((x) => !CORE.includes(x.id) && x.role === role && (x.group || '') === (grp || '')).map((x) => checkbox(x.label, x.desc, `modules.${x.id}`, { onchange: () => { S.skipped.delete(x.id); render(); } }));
         return [
           h('h1', {}, 'What should we set up?'),
-          h('p', { class: 'lead' }, 'Pick the agents and tools for your QA engineers and the modules for your QA lead. You can add more later by re-running this wizard.'),
-          h('h2', {}, '👩‍💻 QA engineers - agents'), group('QA Engineer'),
-          h('h2', {}, '🧰 QA engineers - misc tools', tipIcon('Stand-alone helpers that work with or without the agents: run saved database queries, and file well-formed bugs.')), group('QA Engineer', 'Misc tools'),
-          h('h2', {}, '🧑‍✈️ QA lead'), group('QA Lead'),
-          notes.map((n) => note('warn', n)),
+          h('p', { class: 'lead' }, 'The three agents are the core and are always set up. Everything else is optional: it is ticked so you can see its questions, and every optional step has a Skip button if you don\'t need it now.'),
+          h('h2', {}, '👩‍💻 Core agents (QA engineers)'), core,
+          h('h2', {}, '🧰 Optional - misc tools for QA engineers', tipIcon('Stand-alone helpers that work with or without the agents: run saved database queries, and file well-formed bugs.')), optional('QA Engineer', 'Misc tools'),
+          h('h2', {}, '🧑‍✈️ Optional - QA lead tools'), optional('QA Lead'),
+          note('info', 'Not sure yet? Leave them ticked and press Skip on any step you don\'t want - you can add skipped tools later by re-running this wizard.'),
         ];
       },
-      validate: () => (!Object.values(m()).some(Boolean) ? 'Pick at least one module.' : null),
+      validate: () => null,
     },
     {
       id: 'assistant', title: 'AI assistant', show: () => true,
@@ -734,7 +747,7 @@
       },
     },
     {
-      id: 'query', title: 'Query Runner', show: () => m().queryRunner,
+      id: 'query', title: 'Query Runner', show: () => m().queryRunner, skip: ['queryRunner'],
       render: () => {
         const q = C.queryRunner;
         const eng = S.cat.dbEngines.find((e) => e.id === q.engine);
@@ -794,7 +807,7 @@
       },
     },
     {
-      id: 'bugs', title: 'Bug Filing', show: () => m().bugFiling,
+      id: 'bugs', title: 'Bug Filing', show: () => m().bugFiling, skip: ['bugFiling'],
       render: () => {
         const b = bugDefaultsFor();
         const f = b.fields;
@@ -841,7 +854,7 @@
       },
     },
     {
-      id: 'lead', title: 'QA lead setup', show: () => lead(),
+      id: 'lead', title: 'QA lead setup', show: () => lead(), skip: ['qaAssignment', 'qaAudit', 'bugReport'],
       render: () => {
         const r = C.qaLead.roster;
         const row = (p, i) => h('tr', {},
@@ -853,8 +866,9 @@
           h('td', {}, h('button', { type: 'button', class: 'ghost small', onclick: () => { r.splice(i, 1); render(); } }, 'Remove')));
         return [
           h('h1', {}, 'QA lead setup'),
+          h('p', { class: 'lead' }, 'Optional tools for the QA lead. Skip any section you don\'t need now - or the whole step with the Skip button below.'),
           m().qaAssignment ? [
-            h('h2', {}, '👥 QA roster'),
+            sectionHead('👥 QA Assignment - roster', 'qaAssignment'),
             h('p', { class: 'muted' }, 'Subject keywords route matching tickets (title, tags, component) to that QA first. Reserved people only get their keyword tickets and stay out of the general pool.'),
             h('div', { class: 'panel' },
               h('table', { class: 'roster' }, h('thead', {}, h('tr', {}, ['Name', 'Email / username', 'Pool', 'Subject keywords', 'Reserved keywords', ''].map((x) => h('th', {}, x, tipIcon(ROSTER_TIPS[x]))))), h('tbody', {}, r.map(row))),
@@ -865,7 +879,7 @@
             checkbox('Use comment involvement', 'Give unrouted tickets to the roster QA who commented most recently (slower - reads comments per ticket).', 'qaLead.commentInvolvement'),
           ] : null,
           m().qaAudit ? [
-            h('h2', {}, '🔍 Audit scope'),
+            sectionHead('🔍 QA Audit - scope', 'qaAudit'),
             h('div', { class: 'panel' }, listField('Requirement types to audit', 'audit.requirementTypes', { full: true, help: 'Empty = every item in the release (except ignored types).' })),
             note('info', `The audit reads the marker comments Agent 2${automationInScope() && m().agent3 ? ' and Agent 3' : ''} post on each requirement, so it works the same on any task tool.`),
           ] : null,
@@ -895,6 +909,7 @@
           h('p', { class: 'lead' }, `Installs into `, h('code', {}, S.target)),
           !p ? h('p', {}, 'Building preview…') : [
             p.warnings.map((w) => note('warn', '⚠ ', w)),
+            notSetUp().length ? note('info', h('b', {}, 'Not set up now (optional): '), notSetUp().map(MODULE_LABEL).join(', '), '. To add any of them later, run the wizard again, click "Load previous answers", pick this folder, and tick them.') : null,
             untested.length ? note('warn', `Connections not verified yet: ${untested.join(', ')}. You can install anyway and fix them later with "npm run verify".`) : note('ok', '✔ All connections verified.'),
             h('h2', {}, 'Decisions made from your answers'),
             h('ul', { class: 'tight' }, (p.decisions.length ? p.decisions : ['Standard setup - no special dependencies.']).map((d) => h('li', {}, d))),
@@ -957,6 +972,7 @@
     $('back').style.visibility = S.step === 0 || S.result ? 'hidden' : 'visible';
     $('next').textContent = cur.id === 'review' ? (S.result ? 'Done' : 'Install') : 'Next →';
     $('next').disabled = cur.id === 'review' && (!S.preview || !!S.result);
+    $('skip').style.display = cur.skip && !S.result ? '' : 'none';
     $('navErr').textContent = '';
   }
   async function go(i) {
@@ -986,6 +1002,13 @@
     go(S.step + 1);
   };
   $('back').onclick = () => go(S.step - 1);
+  // Optional step: switch its tool(s) off without asking its questions; the step then disappears and the wizard moves on.
+  $('skip').onclick = () => {
+    const cur = visible()[S.step];
+    if (!cur?.skip) return;
+    skipModules(cur.skip.filter((id) => m()[id]));
+    go(S.step);
+  };
   $('loadBtn').onclick = async () => {
     const folder = prompt('Folder of the previous installation (full path):', S.target);
     if (!folder) return;
