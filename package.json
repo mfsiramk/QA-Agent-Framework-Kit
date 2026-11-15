@@ -1,0 +1,17 @@
+{
+  "name": "qa-agent-framework-client-kit",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Interactive installer that sets up the QA Agent Framework (Agents 1-3, QA Assignment, QA Audit) for any task/test management stack.",
+  "author": "Mindfire Solutions",
+  "license": "UNLICENSED",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node installer/server.js",
+    "selftest": "node installer/selftest.js",
+    "readme": "node tools/build-readme-html.js"
+  },
+  "devDependencies": {
+    "markdown-it": "^13.0.2"
+  }
+}
