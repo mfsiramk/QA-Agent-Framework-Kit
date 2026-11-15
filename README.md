@@ -23,7 +23,7 @@ A shareable, tool-agnostic version of the QA agent workflow, with a **web-based 
 | **Git** | Required if you have an automation repo; recommended otherwise | Clones the automation repo, delivers feature files | https://git-scm.com/downloads |
 | **An AI assistant** | Required (one of) | Runs the agents | Claude Code / Claude desktop app, VS Code or Visual Studio + GitHub Copilot, or Cursor |
 | Excel (or any .xlsx viewer) | Required for QAs | Reviewing Agent 1 test cases | - |
-| Tool accounts + API tokens | Required | Task tool (+ test tool, docs, Figma, code host if used) | The wizard shows how to create each token |
+| Tool accounts + API tokens | Required for every connected tool (task tool, test tool, Confluence, Figma, code host…) | The agents act on your behalf through these tokens | The wizard asks for each one, links to the page where you create it, and won't continue without it |
 | Database login (+ VPN if needed) | Only for Query Runner | Running saved queries on test databases; the driver is installed by `npm install` | Ask your DBA for a read-only test account |
 | Admin rights, database, Docker, cloud hosting, your test framework's runtime (.NET/Java/…) | **Not needed** | | |
 
@@ -46,7 +46,7 @@ The wizard's first page, **Before you start**, checks this computer for Node.js,
 6. **Design artifacts** (Agent 1, pick several): Figma (read from links), Adobe XD, Sketch, Zeplin, Miro / wireframes, screenshots / PDF mockups (exported as images), or "no designs"
 7. **Code changes** (Agent 1): code host for commits and PRs linked to the ticket (read-only)
 8. **Test automation**: existing? → framework (BDD or not), repo, feature/step folders, delivery (PR / branch / local), automation owner. Not yet? → planned or not.
-9. **Test management**: only compatible tools are offered (Azure Test Plans needs Azure Boards; Xray/Zephyr need Jira), TestRail, Qase, or CSV import files for anything else
+9. **Test management**: only compatible tools are offered (Azure Test Plans needs Azure Boards; Xray/Zephyr need Jira), TestRail, Qase, **Confluence pages** (one page per requirement, a section per suite, a test-case table; QAs tag cases for automation in the table), or CSV import files for anything else
 10. **Query Runner** (misc tool): database engine → sign-in method (SQL login, Entra ID, Windows) → environments (server, port, database, "allow data changes", reachability check; production is always read-only) → VPN → where saved queries come from (examples, a folder of .sql files, or the automation repo)
 11. **Bug Filing** (misc tool): bug types and "closed" states → severity / priority / environment fields and allowed values (pre-filled per tool) → defaults (area, triage owner, tags) → link to the story, duplicate check → sections every bug must contain
 12. **QA lead setup**: roster with subject/reserved keywords, bug-author routing, audit scope; **Bug Report**: bug types, closed states, severity order, where "module" comes from, breakdowns, default scope, optional Confluence publishing

@@ -7,6 +7,7 @@
     cat: null,
     step: 0,
     visited: new Set(['prereq']),
+    prevSecrets: new Set(), // token names kept in the .env of a previous install (Load previous answers)
     sys: null,
     target: '',
     options: { mcp: false },
@@ -187,6 +188,37 @@
   }
   const note = (kind, ...kids) => h('div', { class: `note ${kind}` }, ...kids);
 
+  /** Where to create each token (opened in a new tab from the wizard). */
+  function tokenLink(env, section = {}) {
+    const base = String(section.baseUrl || section.orgUrl || '').replace(/\/+$/, '');
+    const L = {
+      ADO_PAT: base && /dev\.azure\.com|visualstudio\.com/.test(base) ? `${base}/_usersSettings/tokens` : 'https://learn.microsoft.com/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate',
+      JIRA_API_TOKEN: 'https://id.atlassian.com/manage-profile/security/api-tokens',
+      CONFLUENCE_API_TOKEN: 'https://id.atlassian.com/manage-profile/security/api-tokens',
+      JIRA_PAT: 'https://confluence.atlassian.com/enterprise/using-personal-access-tokens-1026032365.html',
+      CONFLUENCE_PAT: 'https://confluence.atlassian.com/enterprise/using-personal-access-tokens-1026032365.html',
+      FIGMA_ACCESS_TOKEN: 'https://help.figma.com/hc/en-us/articles/8085703771159-Manage-personal-access-tokens',
+      GITHUB_TOKEN: 'https://github.com/settings/personal-access-tokens/new',
+      GITLAB_TOKEN: `${base && !/gitlab\.com$/.test(base) ? base : 'https://gitlab.com'}/-/user_settings/personal_access_tokens`,
+      LINEAR_API_KEY: 'https://linear.app/settings/account/security',
+      TESTRAIL_API_KEY: base ? `${base}/index.php?/mysettings` : 'https://support.testrail.com/hc/en-us/articles/7077039051284-Accessing-the-TestRail-API',
+      XRAY_CLIENT_ID: 'https://docs.getxray.app/display/XRAYCLOUD/Global+Settings%3A+API+Keys',
+      XRAY_CLIENT_SECRET: 'https://docs.getxray.app/display/XRAYCLOUD/Global+Settings%3A+API+Keys',
+      ZEPHYR_API_TOKEN: 'https://support.smartbear.com/zephyr-scale-cloud/docs/en/rest-api/generating-api-access-tokens.html',
+      QASE_API_TOKEN: 'https://app.qase.io/user/api/token',
+      NOTION_TOKEN: 'https://www.notion.so/my-integrations',
+      BITBUCKET_APP_PASSWORD: 'https://bitbucket.org/account/settings/app-passwords/',
+    };
+    return L[env] || null;
+  }
+
+  /** Error text if a selected tool's tokens are still empty (tokens kept from a previous install count as present). */
+  function needTokens(tool, section = {}) {
+    if (!tool || tool.mode === 'file' || ['none', 'csv', 'manual', 'local', 'files'].includes(tool.adapter || tool.id)) return null;
+    const missing = secretsFor(tool, section.deployment || 'cloud').filter((s) => !String(S.secrets[s.env] || '').trim() && !S.prevSecrets.has(s.env));
+    return missing.length ? `${tool.label}: enter ${missing.map((s) => s.label.replace(/\s*\(.*?\)\s*/g, ' ').trim()).join(' and ')} - use "Get it here" next to the field.` : null;
+  }
+
   /** Tokens that apply to this deployment (Cloud vs Data Center / Server). */
   function secretsFor(tool, deployment = 'cloud') {
     return (tool.secrets || []).filter((s) => {
@@ -211,15 +243,24 @@
       const why = FIELD_TIPS[f.key] ? FIELD_TIPS[f.key](tool.label) : null;
       return textField(f.label, f.key, { root: section, placeholder: f.placeholder, help: f.help, required: f.required, tip: why || f.help || ' ' });
     });
-    const secrets = secretsFor(tool, deployment).map((s) => h('label', { class: 'f' },
-      h('span', {}, s.label, h('span', { class: 'muted' }, `  (${s.env})`), tipIcon(/email|user/i.test(s.env)
-        ? `The login that goes with the token below. The agents act in ${tool.label} as this user, so it needs the permissions listed underneath.`
-        : `A secret key that lets the agents use ${tool.label} on your behalf, instead of your password. It is saved only in the .env file of your installation on this computer, and you can revoke it in ${tool.label} at any time. Paste it exactly, without spaces.`)),
-      h('input', { type: /email|user/i.test(s.env) ? 'text' : 'password', autocomplete: 'off', value: S.secrets[s.env] || '', placeholder: S.secrets[s.env] ? '' : 'paste here - saved only to .env on this computer', oninput: (e) => { S.secrets[s.env] = e.target.value; } }),
-      h('span', { class: 'h' }, s.help || '')));
+    const visibleSecrets = secretsFor(tool, deployment);
+    const kept = (env) => S.prevSecrets.has(env) && !S.secrets[env];
+    const secrets = visibleSecrets.map((s) => {
+      const isLogin = /email|user/i.test(s.env);
+      const link = isLogin ? null : tokenLink(s.env, section);
+      return h('label', { class: 'f' },
+        h('span', { class: 'req' }, s.label, h('span', { class: 'muted' }, `  (${s.env})`), tipIcon(isLogin
+          ? `The login that goes with the token below. The agents act in ${tool.label} as this user, so it needs the permissions listed underneath.`
+          : `A secret key that lets the agents use ${tool.label} on your behalf, instead of your password. It is saved only in the .env file of your installation on this computer, and you can revoke it in ${tool.label} at any time. Paste it exactly, without spaces.`)),
+        h('input', { type: isLogin ? 'text' : 'password', autocomplete: 'off', value: S.secrets[s.env] || '', placeholder: kept(s.env) ? 'kept from your previous installation - leave empty to keep it' : (isLogin ? 'e.g. you@company.com' : 'paste the token here'), oninput: (e) => { S.secrets[s.env] = e.target.value; } }),
+        h('span', { class: 'h' }, s.help || '', link ? [' ', h('a', { href: link, target: '_blank', rel: 'noopener' }, 'Get it here ↗')] : null));
+    });
+    const missing = visibleSecrets.filter((s) => !/email|user/i.test(s.env) && !String(S.secrets[s.env] || '').trim() && !S.prevSecrets.has(s.env));
     const st = S.conn[connKey];
     return h('div', { class: 'panel' },
       connKey !== kind ? h('div', { class: 'panel-title' }, tool.icon || '', ' ', tool.label) : null,
+      missing.length ? h('div', { class: 'note warn token-call' }, '🔑 ', h('b', {}, `${tool.label} needs ${missing.length > 1 ? 'these API tokens' : 'an API token'}`), ' so the agents can read', kind === 'test' || kind === 'task' ? ' and write' : '', ' on your behalf. It takes about a minute: ',
+        missing.map((s, i) => [i ? ' · ' : '', tokenLink(s.env, section) ? h('a', { href: tokenLink(s.env, section), target: '_blank', rel: 'noopener' }, `create the ${s.label.replace(/\s*\(.*?\)\s*/g, ' ').trim()} ↗`) : s.label]), ', then paste it below.') : null,
       h('div', { class: 'grid' }, fields, secrets),
       (tool.secrets || []).length ? note('info', '🔒 Tokens stay on this computer: they are written only to the .env file of your installation, never sent anywhere else.') : null,
       h('div', { class: 'conn' },
@@ -351,6 +392,15 @@
         h('p', { class: 'muted' }, 'Save them in the ', h('code', {}, `${folder}/`), ' folder of the installation (a README with these steps is created there). No account or token needed.')));
     }
     return out;
+  }
+
+  /** First missing token among the picked API sources of a multi-select step. */
+  function sourceTokens(list, section) {
+    for (const id of section.picked) {
+      const t = list.find((x) => x.id === id);
+      if (t && t.mode === 'api') { const e = needTokens(t, (section.settings || {})[t.adapter] || {}); if (e) return e; }
+    }
+    return null;
   }
 
   function missingFields(list, section) {
@@ -552,7 +602,7 @@
         const miss = (t.fields || []).filter((f) => f.required && !String(tm[f.key] || '').trim()).map((f) => f.label);
         if (miss.length) return `Fill in: ${miss.join(', ')}`;
         if (m().qaAssignment && !tm.fields.qaAssignee) return 'QA Assignment needs the QA owner field.';
-        return null;
+        return needTokens(t, tm);
       },
     },
     {
@@ -565,7 +615,7 @@
         sourcePanels('docs', S.cat.docTools, C.requirementDocs),
         C.requirementDocs.picked.length ? note('info', '🔎 You won\'t need to paste links every time: Agent 1 finds document links inside the ticket (description, AC, comments) and reads them automatically. It asks only when none are found.') : null,
       ],
-      validate: () => (!C.requirementDocs.picked.length ? 'Pick where requirements are written, or "Only the ticket".' : missingFields(S.cat.docTools, C.requirementDocs)),
+      validate: () => (!C.requirementDocs.picked.length ? 'Pick where requirements are written, or "Only the ticket".' : missingFields(S.cat.docTools, C.requirementDocs) || sourceTokens(S.cat.docTools, C.requirementDocs)),
     },
     {
       id: 'design', title: 'Design artifacts', show: () => m().agent1,
@@ -576,7 +626,7 @@
         multiCards(S.cat.designTools, C.design, 'design'),
         sourcePanels('design', S.cat.designTools, C.design),
       ],
-      validate: () => (!C.design.picked.length ? 'Pick where designs live, or "No designs".' : missingFields(S.cat.designTools, C.design)),
+      validate: () => (!C.design.picked.length ? 'Pick where designs live, or "No designs".' : missingFields(S.cat.designTools, C.design) || sourceTokens(S.cat.designTools, C.design)),
     },
     {
       id: 'code', title: 'Code changes', show: () => m().agent1,
@@ -595,7 +645,7 @@
       validate: () => {
         const t = S.cat.codeTools.find((x) => x.id === C.codeChanges.tool);
         const miss = (t?.fields || []).filter((f) => f.required && !String(C.codeChanges[f.key] || '').trim() && C.codeChanges.tool !== 'ado');
-        return miss.length ? `Fill in: ${miss.map((f) => f.label).join(', ')}` : null;
+        return miss.length ? `Fill in: ${miss.map((f) => f.label).join(', ')}` : needTokens(t, C.codeChanges);
       },
     },
     {
@@ -660,7 +710,12 @@
           h('p', { class: 'lead' }, 'Agent 2 creates the plan here; Agent 3 reads the automation-tagged cases back. No tool? Pick the CSV option - you get an import file.'),
           cards(S.cat.testTools, 'testManagement.tool', {
             isDisabled: (x) => (x.requires && !x.requires.includes(C.taskManagement.tool) ? `Needs ${x.requires.map((r) => S.cat.taskTools.find((tt) => tt.id === r)?.label).join(' / ')} (you chose ${taskLabel || 'none'})` : null),
-            onpick: (x) => { const keep = { tool: x.id, automationTag: C.testManagement.automationTag || 'Automation' }; if (x.id === 'csv') keep.format = 'generic'; S.config.testManagement = keep; delete S.conn.test; },
+            onpick: (x) => {
+              const keep = { tool: x.id, automationTag: C.testManagement.automationTag || 'Automation' };
+              if (x.id === 'csv') keep.format = 'generic';
+              if (x.id === 'confluence') { const doc = C.requirementDocs.settings?.confluence || {}; keep.baseUrl = doc.baseUrl || ''; keep.deployment = doc.deployment || 'cloud'; }
+              S.config.testManagement = keep; delete S.conn.test;
+            },
           }),
           t ? [
             t.fields?.length || t.secrets?.length ? h('h2', {}, `Connect ${t.label}`) : null,
@@ -675,7 +730,7 @@
         if (!tm.tool) return 'Pick a test management option.';
         const t = S.cat.testTools.find((x) => x.id === tm.tool);
         const miss = (t.fields || []).filter((f) => f.required && !String(tm[f.key] || '').trim()).map((f) => f.label);
-        return miss.length ? `Fill in: ${miss.join(', ')}` : null;
+        return miss.length ? `Fill in: ${miss.join(', ')}` : needTokens(t, tm);
       },
     },
     {
@@ -822,6 +877,7 @@
         if (m().bugReport && !C.bugReport.types.length) return 'Bug report: enter at least one bug type.';
         if (m().bugReport && C.bugReport.publish.enabled && !C.bugReport.publish.spaceKey) return 'Bug report: enter the Confluence space key (or untick publishing).';
         if (m().bugReport && C.bugReport.publish.enabled && !m().agent1 && !(C.requirementDocs.settings.confluence || {}).baseUrl) return 'Bug report: enter the Confluence URL (or untick publishing).';
+        if (m().bugReport && C.bugReport.publish.enabled && !m().agent1) return needTokens(S.cat.docTools.find((x) => x.id === 'confluence'), C.requirementDocs.settings.confluence || {});
         return null;
       },
     },
@@ -946,11 +1002,12 @@
         C[key].settings = C[key].settings || {};
       }
       S.options = saved.options || S.options;
+      S.prevSecrets = new Set(saved.secretNames || []); // their values stay in that folder's .env
       S.target = folder;
       S.visited = new Set(STEPS.map((s) => s.id));
       S.preview = null; S.result = null;
       go(1);
-      alert(`Loaded. Re-enter these tokens (they are never saved in the answers file): ${(saved.secretNames || []).join(', ') || 'none'}`);
+      alert(`Loaded. Your tokens (${(saved.secretNames || []).join(', ') || 'none'}) stay in that installation's .env - leave the token fields empty to keep them, or paste a new one to replace it.`);
     } catch (e) { alert(e.message); }
   };
 

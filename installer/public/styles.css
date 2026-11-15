@@ -65,3 +65,4 @@ th .tip{margin-left:4px}
 .okc{color:var(--ok)}.badc{color:var(--bad)}
 label.check.full{grid-column:1/-1}
 table.roster input[type=checkbox]{width:18px;height:18px}
+.token-call a{font-weight:600}

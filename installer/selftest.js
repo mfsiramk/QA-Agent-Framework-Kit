@@ -118,6 +118,14 @@ test('"Only the ticket" + "No designs" → no doc/design wording, no folders', (
   assert(!r.files['requirements-docs/README.md'] && !r.files['design-exports/README.md']);
 });
 
+test('Confluence as test management → connector, vocabulary, decision', () => {
+  const r = buildFiles(base({ taskManagement: { tool: 'jira', baseUrl: 'https://acme.atlassian.net', projectKey: 'WEB', fields: {} },
+    testManagement: { tool: 'confluence', baseUrl: 'https://acme.atlassian.net/wiki', deployment: 'cloud', spaceKey: 'QA' },
+    automation: { status: 'existing', framework: 'reqnroll', repo: { cloneUrl: 'u', branch: 'main' } } }));
+  assert(r.decisions.some((x) => /Test plans live in Confluence \(space QA\)/.test(x)));
+  assert(/test plan page/.test(r.files['agents/agent2-test-plan-creator.md']) && /Confluence pages/.test(r.files['CLAUDE.md']));
+});
+
 test('Other task tool → ticket-files README and decision', () => {
   const r = buildFiles(base({ taskManagement: { tool: 'manual', fields: {} }, testManagement: { tool: 'csv', format: 'generic' } }));
   assert(r.files['requirements/README.md'] && r.decisions.some((x) => /requirements\/<ID>\.md/.test(x)));
