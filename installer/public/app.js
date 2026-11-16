@@ -41,10 +41,10 @@
   const m = () => C.modules;
   const anyAgent = () => m().agent1 || m().agent2 || m().agent3;
   const lead = () => m().qaAssignment || m().qaAudit || m().bugReport;
-  const CORE = ['agent1', 'agent2', 'agent3']; // always set up; everything else is optional and skippable
+  const CORE = ['agent1', 'agent2', 'agent3']; // the agent chain: selectable, ticked by default; other tools also have Skip buttons
   const MODULE_LABEL = (id) => (S.cat.modules.find((x) => x.id === id) || {}).label || id;
   /** Optional modules that will not be installed (skipped or unticked). */
-  const notSetUp = () => S.cat.modules.filter((x) => !CORE.includes(x.id) && !m()[x.id]).map((x) => x.id);
+  const notSetUp = () => S.cat.modules.filter((x) => !m()[x.id]).map((x) => x.id);
   /** Skip optional modules: switch them off and remember them for the Review page. */
   function skipModules(ids) { ids.forEach((id) => { m()[id] = false; S.skipped.add(id); }); }
   /** Section heading with its own Skip button (used where one step holds several optional tools). */
@@ -543,22 +543,32 @@
     {
       id: 'modules', title: 'What to set up', show: () => true,
       render: () => {
-        CORE.forEach((id) => { m()[id] = true; });
-        const core = S.cat.modules.filter((x) => CORE.includes(x.id)).map((x) => h('div', { class: 'check core' },
-          h('input', { type: 'checkbox', checked: true, disabled: true, 'aria-label': `${x.label} (always included)` }),
-          h('div', {}, h('div', { class: 'b' }, h('b', {}, x.label), h('span', { class: 'pill ok', style: 'margin-left:8px' }, 'Always included'), tipIcon(TIPS[`modules.${x.id}`])),
-            h('div', { class: 'd' }, x.desc, x.id === 'agent3' ? ' (Switched off automatically if you have no test automation and none is planned.)' : ''))));
+        // Agents: selectable, ticked by default. Dependency rules keep the combination valid.
+        const notes = [];
+        if (m().agent3 && !m().agent2) notes.push('Agent 3 reads the test plans Agent 2 creates - Agent 2 was switched on.');
+        if (m().agent2 && !m().agent1) notes.push('Agent 2 without Agent 1: your QAs supply their own test-case Excel in the same column layout.');
+        if (m().qaAudit && !m().agent2) notes.push('QA Audit checks whether Agent 2 / Agent 3 were used, so it needs Agent 2 - tick Agent 2 or QA Audit will be left out.');
+        const agents = S.cat.modules.filter((x) => CORE.includes(x.id)).map((x) => h('label', { class: 'check' },
+          h('input', { type: 'checkbox', checked: !!m()[x.id], onchange: (e) => {
+            m()[x.id] = e.target.checked;
+            if (x.id === 'agent3' && m().agent3) m().agent2 = true; // Agent 3 needs Agent 2's test plans
+            if (x.id === 'agent2' && !m().agent2) m().agent3 = false; // …so no Agent 2 means no Agent 3
+            render();
+          } }),
+          h('div', {}, h('div', { class: 'b' }, h('b', {}, x.label), h('span', { class: 'pill ok', style: 'margin-left:8px' }, 'Recommended'), tipIcon(TIPS[`modules.${x.id}`])),
+            h('div', { class: 'd' }, x.desc, x.id === 'agent3' ? ' (Needs Agent 2. Switched off automatically if you have no test automation and none is planned.)' : ''))));
         const optional = (role, grp) => S.cat.modules.filter((x) => !CORE.includes(x.id) && x.role === role && (x.group || '') === (grp || '')).map((x) => checkbox(x.label, x.desc, `modules.${x.id}`, { onchange: () => { S.skipped.delete(x.id); render(); } }));
         return [
           h('h1', {}, 'What should we set up?'),
-          h('p', { class: 'lead' }, 'The three agents are the core and are always set up. Everything else is optional: it is ticked so you can see its questions, and every optional step has a Skip button if you don\'t need it now.'),
-          h('h2', {}, '👩‍💻 Core agents (QA engineers)'), core,
+          h('p', { class: 'lead' }, 'Everything starts ticked so you can see all the questions. Untick what you don\'t want, or press Skip later on any optional tool\'s step.'),
+          h('h2', {}, '👩‍💻 Agents for QA engineers', tipIcon('The three agents work as a chain: Agent 1 writes test cases → Agent 2 puts them in your test tool → Agent 3 turns the automation-tagged ones into feature files. Most teams use all three; you can start with fewer.')), agents,
           h('h2', {}, '🧰 Optional - misc tools for QA engineers', tipIcon('Stand-alone helpers that work with or without the agents: run saved database queries, and file well-formed bugs.')), optional('QA Engineer', 'Misc tools'),
           h('h2', {}, '🧑‍✈️ Optional - QA lead tools'), optional('QA Lead'),
-          note('info', 'Not sure yet? Leave them ticked and press Skip on any step you don\'t want - you can add skipped tools later by re-running this wizard.'),
+          notes.map((n) => note('warn', n)),
+          note('info', 'Not sure yet? Leave them ticked and press Skip on any optional step you don\'t want - you can add anything later by re-running this wizard.'),
         ];
       },
-      validate: () => null,
+      validate: () => (!Object.values(m()).some(Boolean) ? 'Pick at least one agent or tool.' : null),
     },
     {
       id: 'assistant', title: 'AI assistant', show: () => true,
@@ -909,7 +919,7 @@
           h('p', { class: 'lead' }, `Installs into `, h('code', {}, S.target)),
           !p ? h('p', {}, 'Building preview…') : [
             p.warnings.map((w) => note('warn', '⚠ ', w)),
-            notSetUp().length ? note('info', h('b', {}, 'Not set up now (optional): '), notSetUp().map(MODULE_LABEL).join(', '), '. To add any of them later, run the wizard again, click "Load previous answers", pick this folder, and tick them.') : null,
+            notSetUp().length ? note('info', h('b', {}, 'Not set up now: '), notSetUp().map(MODULE_LABEL).join(', '), '. To add any of them later, run the wizard again, click "Load previous answers", pick this folder, and tick them.') : null,
             untested.length ? note('warn', `Connections not verified yet: ${untested.join(', ')}. You can install anyway and fix them later with "npm run verify".`) : note('ok', '✔ All connections verified.'),
             h('h2', {}, 'Decisions made from your answers'),
             h('ul', { class: 'tight' }, (p.decisions.length ? p.decisions : ['Standard setup - no special dependencies.']).map((d) => h('li', {}, d))),
