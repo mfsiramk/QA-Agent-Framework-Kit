@@ -5,14 +5,14 @@
  * or a bare page id, reads body.storage and returns plain text split into sections on h1-h4.
  */
 
-const { request, basicAuth, bearer, htmlToText } = require('../../core/http.js');
+const { request, basicAuth, bearer, htmlToText, atlassianUrl } = require('../../core/http.js');
 
 const SERVICE = 'Confluence';
 
 function conn(ctx) {
   const c = ctx.config || {};
   const e = ctx.env || {};
-  const baseUrl = String(c.baseUrl || '').replace(/\/+$/, '');
+  const baseUrl = atlassianUrl(c.baseUrl, 'confluence'); // Cloud: adds the /wiki that is often forgotten
   if (!baseUrl) throw new Error('Confluence: base URL is not configured. Fill it in the installer.');
   const server = String(c.deployment || 'cloud').toLowerCase() === 'server';
   if (server) {
@@ -59,9 +59,14 @@ const cleanStorage = (html) => String(html || '')
 async function testConnection(ctx) {
   try {
     await api(ctx, 'space?limit=1');
-    return { ok: true, message: 'Connected to Confluence.' };
+    return { ok: true, message: `Connected to Confluence (${conn(ctx).baseUrl}).` };
   } catch (e) {
-    return { ok: false, message: e.message, fix: 'Check the Confluence URL (Cloud ends with /wiki) and that the token is valid and your account can view the spaces holding requirement documents.' };
+    const server = String((ctx.config || {}).deployment || 'cloud').toLowerCase() === 'server';
+    const fix = e.status === 401
+      ? (server ? 'Create a new Personal Access Token in Confluence and paste it into .env.' : 'Check the email is your Atlassian login, and that the token was made with "Create API token" (not "with scopes") and copied whole. The same Atlassian token works for Jira and Confluence.')
+      : e.status === 404 ? 'Check the Confluence address - for Cloud, the part up to .atlassian.net is enough (/wiki is added automatically).'
+        : 'Check the Confluence URL, the token, and that your account can view the spaces holding requirement documents.';
+    return { ok: false, message: e.message, fix };
   }
 }
 

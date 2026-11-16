@@ -283,7 +283,7 @@
         h('button', { type: 'button', class: 'ghost', onclick: async (e) => {
           e.target.disabled = true; e.target.textContent = 'Testing…';
           try {
-            S.conn[connKey] = { ...(await api('/api/test-connection', { kind, tool: adapterId, config: section, secrets: S.secrets, task: C.taskManagement })), at: Date.now() };
+            S.conn[connKey] = { ...(await api('/api/test-connection', { kind, tool: adapterId, config: section, secrets: S.secrets, task: C.taskManagement, target: S.target })), at: Date.now() };
           } catch (err) { S.conn[connKey] = { ok: false, message: err.message }; }
           render();
         } }, 'Test connection'),

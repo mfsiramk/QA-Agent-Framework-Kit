@@ -12,15 +12,20 @@
  * discover(ctx, workItem, texts) finds requirement issues for a ticket automatically:
  *   - when the task tool is this same Jira: the ticket's parent and its linked issues
  *   - Jira issue links (/browse/KEY-1) found in the ticket text / comments
- *   ...keeping only issues whose type is in config.issueTypes (default: Epic, Requirement, SRS).
+ *   - SRS project(s) set: issues in those projects that mention the ticket key (JQL text search)
+ *   An issue counts as a requirement when its type is in config.issueTypes (default: Epic,
+ *   Requirement, SRS) OR it lives in one of config.requirementProjects - so a separate SRS
+ *   project can use ordinary types (Story, Task...) and still be recognised.
  *
- * config: baseUrl, deployment (cloud|server), issueTypes ("Epic, Requirement")
+ * Works across projects: user stories in one project, the SRS in another (same Jira site).
+ *
+ * config: baseUrl, deployment (cloud|server), issueTypes ("Epic, Requirement"), requirementProjects ("SRS, SPEC")
  * secrets: cloud JIRA_EMAIL + JIRA_API_TOKEN · server JIRA_PAT (shared with the Jira task tool)
  */
 
 const fs = require('fs');
 const path = require('path');
-const { request, basicAuth, bearer, htmlToText } = require('../../core/http.js');
+const { request, basicAuth, bearer, htmlToText, atlassianUrl } = require('../../core/http.js');
 const local = require('./local.js');
 
 const SERVICE = 'Jira';
@@ -30,7 +35,7 @@ const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 function conn(ctx) {
   const c = { ...((ctx.task && ctx.task.tool === 'jira') ? ctx.task : {}), ...(ctx.config || {}) };
   const e = ctx.env || {};
-  const base = String(c.baseUrl || '').replace(/\/+$/, '');
+  const base = atlassianUrl(c.baseUrl, 'jira');
   if (!base) throw new Error('Jira: the Jira site URL is not configured.');
   const cloud = String(c.deployment || 'cloud').toLowerCase() !== 'server';
   let auth;
@@ -41,9 +46,21 @@ function conn(ctx) {
     if (!e.JIRA_PAT) throw new Error('Jira: JIRA_PAT is missing from .env.');
     auth = bearer(e.JIRA_PAT);
   }
-  const types = String(Array.isArray(c.issueTypes) ? c.issueTypes.join(',') : (c.issueTypes || 'Epic, Requirement, SRS'))
-    .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
-  return { base, api: `${base}/rest/api/${cloud ? 3 : 2}`, cloud, auth, types };
+  const list = (v, d) => String(Array.isArray(v) ? v.join(',') : (v ?? d)).split(',').map((s) => s.trim()).filter(Boolean);
+  const types = list(c.issueTypes, 'Epic, Requirement, SRS').map((s) => s.toLowerCase());
+  const projects = list(c.requirementProjects, '').map((s) => s.toUpperCase());
+  return { base, api: `${base}/rest/api/${cloud ? 3 : 2}`, cloud, auth, types, projects };
+}
+const projectOf = (key) => String(key || '').split('-')[0].toUpperCase();
+/** Is this issue a requirement? Its type is a requirement type, or it lives in an SRS project. */
+// A project key typed into "issue types" by mistake (e.g. "SRS") still works as a project.
+const isRequirement = (c, key, type) => (type && c.types.includes(String(type).toLowerCase())) || c.projects.includes(projectOf(key)) || c.types.includes(projectOf(key).toLowerCase());
+
+/** JQL search (Cloud: /search/jql, Data Center: /search). */
+async function jql(c, query, max = 10) {
+  const q = `jql=${encodeURIComponent(query)}&maxResults=${max}&fields=issuetype`;
+  const r = await call(c, c.cloud ? `/search/jql?${q}` : `/search?${q}`);
+  return r.issues || [];
 }
 const call = (c, p, opts = {}) => request({ ...opts, url: c.api + p, service: SERVICE, headers: { Authorization: c.auth, ...(opts.headers || {}) } });
 
@@ -98,13 +115,36 @@ function matches(ctx, input) {
 }
 
 async function testConnection(ctx) {
+  let c;
+  let me;
   try {
-    const c = conn(ctx);
-    const me = await call(c, '/myself');
-    return { ok: true, message: `Connected to Jira as ${me.displayName || me.name || 'you'}. Requirement issue types: ${c.types.join(', ')}.` };
+    c = conn(ctx);
+    me = await call(c, '/myself'); // step 1: site + login
   } catch (e) {
-    return { ok: false, message: e.message, fix: 'Check the Jira site URL and the Jira token in .env (the same login as the Jira task tool).' };
+    const fix = e.status === 401
+      ? (c && !c.cloud ? 'Create a new Personal Access Token in Jira and paste it into .env.' : 'Check the email is your Atlassian login, and that the token was made with "Create API token" (not "with scopes") and copied whole. Then test again.')
+      : e.status === 404 ? 'The site address looks wrong - copy the part up to .atlassian.net from your browser.'
+        : 'Check the Jira site URL and the Jira token in .env (the same login as the Jira task tool).';
+    return { ok: false, message: e.message, fix };
   }
+  const who = me.displayName || me.name || 'you';
+  const problems = [];
+  // step 2: SRS projects are visible
+  for (const p of c.projects) { try { await call(c, `/project/${encodeURIComponent(p)}`); } catch { problems.push(`SRS project "${p}" is not visible to this account (check the key or ask for "Browse projects")`); } }
+  // step 3: each "issue type" really is an issue type - and spot project keys typed there by mistake
+  try {
+    const all = await call(c, '/issuetype');
+    const names = new Set((Array.isArray(all) ? all : []).map((t) => String(t.name).toLowerCase()));
+    for (const t of c.types.filter((x) => !names.has(x))) {
+      let isProject = false;
+      try { await call(c, `/project/${encodeURIComponent(t.toUpperCase())}`); isProject = true; } catch { /* not a project */ }
+      problems.push(isProject
+        ? `"${t.toUpperCase()}" is a project key, not an issue type - move it to "SRS project key(s)" (it is treated as a project meanwhile)`
+        : `issue type "${t}" does not exist in this Jira - check the spelling (Jira → Settings → Issues → Issue types)`);
+    }
+  } catch { /* issue type list not available to this account - skip the check */ }
+  if (problems.length) return { ok: false, message: `Signed in to Jira as ${who}, but: ${problems.join('; ')}.`, fix: 'Fix the fields above and test again.' };
+  return { ok: true, message: `Connected to Jira as ${who}. Requirements = issue types ${c.types.join(', ')}${c.projects.length ? ` + everything in project(s) ${c.projects.join(', ')}` : ''}.` };
 }
 
 async function downloadAttachment(c, att, dir) {
@@ -151,12 +191,18 @@ async function fetchDocument(ctx, input) {
   return { title, url: `${c.base}/browse/${key}`, text, sections: secs, attachments, needsDirectRead: attachments.some((a) => a.needsDirectRead) };
 }
 
-/** Requirement issues for a ticket: parent + linked issues (same Jira) and Jira links in the text, filtered by issue type. */
+/**
+ * Requirement issues for a ticket, from any project on this Jira site:
+ * parent + linked issues (same Jira), Jira links in the text, and - when SRS projects are set -
+ * issues in those projects that mention the ticket key. Kept if isRequirement().
+ */
 async function discover(ctx, workItem, texts = []) {
   const c = conn(ctx);
   const found = new Map(); // key -> type
-  const consider = (k, type) => { if (k && type && c.types.includes(String(type).toLowerCase())) found.set(k, type); };
-  const sameJira = ctx.task && ctx.task.tool === 'jira' && workItem && /^[A-Z][A-Z0-9_]+-\d+$/.test(String(workItem.id));
+  const ticket = String((workItem && workItem.id) || '');
+  const consider = (k, type) => { if (k && k !== ticket && isRequirement(c, k, type)) found.set(k, type || ''); };
+  const isKey = /^[A-Z][A-Z0-9_]+-\d+$/.test(ticket);
+  const sameJira = ctx.task && ctx.task.tool === 'jira' && isKey;
   if (sameJira) {
     try {
       const it = await call(c, `/issue/${encodeURIComponent(workItem.id)}?fields=parent,issuelinks`);
@@ -167,8 +213,16 @@ async function discover(ctx, workItem, texts = []) {
   }
   const keys = new Set();
   for (const t of texts) for (const m of String(t || '').matchAll(/https?:\/\/[^\s"'<>)]+\/browse\/([A-Z][A-Z0-9_]+-\d+)/gi)) if (matches(ctx, m[0])) keys.add(m[1].toUpperCase());
-  for (const k of [...keys].filter((x) => !found.has(x) && x !== String(workItem && workItem.id)).slice(0, 10)) {
+  for (const k of [...keys].filter((x) => !found.has(x) && x !== ticket).slice(0, 10)) {
+    if (c.projects.includes(projectOf(k))) { consider(k, null); continue; } // SRS project: no need to look up the type
     try { const it = await call(c, `/issue/${encodeURIComponent(k)}?fields=issuetype`); consider(k, it.fields && it.fields.issuetype && it.fields.issuetype.name); } catch { /* skip */ }
+  }
+  // SRS kept in separate project(s) but not linked: find issues there that mention the ticket key.
+  if (c.projects.length && isKey) {
+    try {
+      const q = `project in (${c.projects.map((p) => `"${p}"`).join(',')}) AND text ~ "\\"${ticket}\\"" ORDER BY updated DESC`;
+      for (const it of await jql(c, q, 10)) consider(it.key, it.fields && it.fields.issuetype && it.fields.issuetype.name);
+    } catch { /* search is best effort */ }
   }
   return [...found.keys()].map((k) => `${c.base}/browse/${k}`);
 }
@@ -185,6 +239,7 @@ module.exports = {
     { key: 'baseUrl', label: 'Jira site URL', placeholder: 'https://your-company.atlassian.net', help: 'The address of your Jira site, without anything after the domain.', required: true },
     { key: 'deployment', label: 'Jira type', placeholder: 'cloud', help: 'Cloud for *.atlassian.net, Server for Data Center / self-hosted.', required: true },
     { key: 'issueTypes', label: 'Requirement issue types', placeholder: 'Epic, Requirement, SRS', help: 'The issue types that hold your SRS / BRD, comma-separated, exactly as named in Jira. A ticket\'s parent and linked issues of these types are read automatically.', required: true, default: 'Epic, Requirement, SRS' },
+    { key: 'requirementProjects', label: 'SRS project key(s) (optional)', placeholder: 'SRS, SPEC', help: 'If the SRS lives in its own Jira project(s), enter their keys. Every issue there counts as a requirement (whatever its type), and Agent 1 also searches them for issues that mention the story\'s key - even when nothing is linked.', required: false },
   ],
   testConnection, matches, fetchDocument, discover,
   _internal: { adf, wiki, sections, keyOf },

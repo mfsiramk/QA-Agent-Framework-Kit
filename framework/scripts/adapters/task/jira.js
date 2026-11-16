@@ -4,7 +4,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { request, basicAuth, bearer, adfToText } = require('../../core/http.js');
+const { request, basicAuth, bearer, adfToText, atlassianUrl } = require('../../core/http.js');
 const B = require('./_bug.js');
 
 const SERVICE = 'Jira';
@@ -35,7 +35,7 @@ const fields = [
 function cfg(ctx) {
   const c = ctx.config || {};
   const env = ctx.env || {};
-  const base = String(c.baseUrl || '').replace(/\/+$/, '');
+  const base = atlassianUrl(c.baseUrl, 'jira'); // tolerates /browse/..., /jira/... and a missing https://
   if (!base || !c.projectKey) throw new Error('Jira is not configured: set the Jira site URL and Project key.');
   const cloud = String(c.deployment || 'cloud').toLowerCase() !== 'server';
   let auth;
@@ -180,19 +180,34 @@ const mdToWiki = (md) => String(md || '').replace(/\*\*([^*]+)\*\*/g, '*$1*').re
 const body = (c, md) => (c.cloud ? mdToAdf(md) : mdToWiki(md));
 
 // ---------- contract ----------
+/** Plain-language fix for an Atlassian 401. */
+const atlassian401 = (cloud) => (cloud
+  ? 'Check three things: (1) the email is the one you log in to Atlassian with; (2) the token was made with "Create API token" - tokens made with "Create API token with scopes" do not work with the site address; (3) it was copied whole, with no spaces. Then paste it into .env and test again.'
+  : 'Create a new Personal Access Token in Jira (avatar → Profile → Personal Access Tokens), paste it into .env and test again.');
+
 async function testConnection(ctx) {
+  let c;
+  // Step 1 - site + login (so a bad token is not reported as a bad project key)
   try {
-    const c = cfg(ctx);
+    c = cfg(ctx);
+    await call(c, '/myself');
+  } catch (e) {
+    const s = e.status;
+    const fix = s === 401 ? atlassian401(c ? c.cloud : true)
+      : s === 403 ? 'The login works but this account may not use the REST API. Ask a Jira admin to allow API access for it.'
+      : s === 404 ? 'The site address looks wrong. Copy it from the browser: the part up to .atlassian.net (Cloud) or the start page of your self-hosted Jira.'
+      : /not configured|missing/.test(e.message) ? 'Fill in the Jira site URL, Jira type, Project key and the matching token, then test again.'
+      : 'Check the Jira site URL and your network/VPN connection, then test again.';
+    return { ok: false, message: e.message, fix };
+  }
+  // Step 2 - the project
+  try {
     const p = await call(c, `/project/${encodeURIComponent(c.key)}`);
     return { ok: true, message: `Connected to Jira project ${p.key} (${p.name}).` };
   } catch (e) {
     const s = e.status;
-    const fix = s === 401 ? 'Create a fresh Jira token (API token on Cloud, Personal Access Token on Data Center) and paste it into .env.'
-      : s === 403 ? 'Ask a Jira admin to give your account Browse Projects permission on this project.'
-      : s === 404 ? 'Check the Project key and site URL - the key is the letters before the dash in an issue number.'
-      : /not configured|missing/.test(e.message) ? 'Fill in the Jira site URL, Jira type, Project key and the matching token in .env, then test again.'
-      : 'Check the Jira site URL and your network/VPN connection, then test again.';
-    return { ok: false, message: e.message, fix };
+    return { ok: false, message: `Signed in to Jira, but project "${c.key}" ${s === 404 ? 'was not found or is not visible to this account' : 'could not be opened'}. ${e.message}`,
+      fix: s === 404 ? 'Check the Project key - it is the letters before the dash in an issue number (ZEN-123 → ZEN) - and that this account can browse that project.' : 'Ask a Jira admin to give this account "Browse projects" on that project.' };
   }
 }
 
