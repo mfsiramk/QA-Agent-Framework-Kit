@@ -18,6 +18,17 @@ const { catalog, ADAPTERS } = require('./lib/catalog');
 const { buildFiles, install } = require('./lib/generator');
 
 const PUBLIC = path.join(__dirname, 'public');
+
+/** Fingerprint of this copy of the kit (file names, sizes, dates) - tells an old running wizard from a new one. */
+const BUILD = (() => {
+  const h = require('crypto').createHash('sha1');
+  const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name)).forEach((e) => {
+    const p = path.join(d, e.name);
+    if (e.isDirectory()) { if (e.name !== 'node_modules') walk(p); } else { const s = fs.statSync(p); h.update(`${path.relative(__dirname, p)}:${s.size}:${s.mtimeMs}\n`); }
+  });
+  [__dirname, path.join(__dirname, '..', 'framework', 'scripts')].forEach((d) => { if (fs.existsSync(d)) walk(d); });
+  return h.digest('hex').slice(0, 12);
+})();
 const argv = process.argv.slice(2);
 const PORT = Number((argv.find((a) => a.startsWith('--port=')) || '').split('=')[1]) || Number(process.env.PORT) || 4600;
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.png': 'image/png', '.ico': 'image/x-icon' };
@@ -97,7 +108,14 @@ const routes = {
   'GET /api/system-check': () => systemCheck(),
   'POST /api/tcp-check': (b) => tcpCheck(b),
   'GET /api/catalog': () => catalog(),
-  'GET /api/defaults': () => ({ target: path.join(os.homedir(), 'qa-agents'), platform: process.platform }),
+  'GET /api/defaults': () => ({ target: path.join(os.homedir(), 'qa-agents'), platform: process.platform, build: BUILD }),
+  // A newer copy of the wizard asks an older one to step aside (see "server.on('error')" below).
+  'POST /api/shutdown': (b) => {
+    if (!b || !b.build || b.build === BUILD) return { ok: false, reason: 'same build' };
+    console.log('\n🔁 Another version of the setup wizard was started - this window closes now.\n');
+    setTimeout(() => process.exit(0), 300);
+    return { ok: true };
+  },
   'POST /api/test-connection': (b) => testConnection(b),
   'POST /api/preview': (b) => { const r = buildFiles(b); return { files: mask(r.files), warnings: r.warnings, decisions: r.decisions }; },
   'POST /api/install': (b) => {
@@ -137,27 +155,46 @@ function openBrowser(url) {
   }
 }
 
-/** Is our own wizard already answering on this port? */
-function isWizard(port) {
+/** What is answering on this port? null = not our wizard; { build } = our wizard (build undefined = a very old copy). */
+function probeWizard(port) {
   return new Promise((resolve) => {
     const req = http.get({ host: '127.0.0.1', port, path: '/api/defaults', timeout: 1500 }, (res) => {
-      let d = ''; res.on('data', (c) => { d += c; }); res.on('end', () => { try { resolve(!!JSON.parse(d).target); } catch { resolve(false); } });
+      let d = ''; res.on('data', (c) => { d += c; }); res.on('end', () => { try { const j = JSON.parse(d); resolve(j.target ? { build: j.build } : null); } catch { resolve(null); } });
     });
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => { req.destroy(); resolve(null); });
+  });
+}
+
+function askToShutdown(port) {
+  return new Promise((resolve) => {
+    const body = JSON.stringify({ build: BUILD });
+    const req = http.request({ host: '127.0.0.1', port, path: '/api/shutdown', method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }, timeout: 2000 }, (res) => { res.resume(); res.on('end', () => resolve(res.statusCode === 200)); });
     req.on('error', () => resolve(false));
     req.on('timeout', () => { req.destroy(); resolve(false); });
+    req.end(body);
   });
 }
 
 let port = PORT;
 const MAX_TRIES = 20;
+let tookOver = false;
 server.on('error', async (e) => {
   if (e.code !== 'EADDRINUSE') { console.error(`\n❌ ${e.message}\n`); process.exit(1); }
-  if (await isWizard(port)) {
+  const running = await probeWizard(port);
+  if (running && running.build === BUILD) { // same version already open: just show it
     const url = `http://127.0.0.1:${port}`;
     console.log(`\n🧭 The setup wizard is already running at ${url} - opening it in your browser.\n   (You can close this window.)\n`);
     openBrowser(url);
     setTimeout(() => process.exit(0), 1500);
     return;
+  }
+  if (running && !tookOver) { // an OLDER (or different) copy is running: ask it to close, then take its place
+    tookOver = true;
+    console.log(`\n🔁 Another version of the setup wizard is running on port ${port} - replacing it with this one…`);
+    await askToShutdown(port);
+    for (let i = 0; i < 15; i++) { await new Promise((r) => setTimeout(r, 200)); if (!(await probeWizard(port))) return server.listen(port, '127.0.0.1'); }
+    console.log(`   The old copy did not close by itself (it is from before this feature). Close its window, or use the new address below.`);
   }
   if (port - PORT >= MAX_TRIES) { console.error(`\n❌ Ports ${PORT}-${port} are all busy. Close other programs or run: npm start -- --port=5600\n`); process.exit(1); }
   port++;
