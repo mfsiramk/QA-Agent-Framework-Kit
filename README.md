@@ -39,7 +39,7 @@ The wizard's first page, **Before you start**, checks this computer for Node.js,
 
 0. **Before you start**: technology check
 1. **Company, product, install folder**
-2. **Modules**: Agents 1, 2 and 3 are the core and always set up. Query Runner, Bug Filing, QA Assignment, QA Audit and Bug Report are optional: they start ticked, and each of their steps (or each section of the QA lead step) has a **Skip** button. Skipped tools are listed on the Review page and can be added later with "Load previous answers".
+2. **Modules**: everything starts ticked. Agents 1, 2 and 3 (recommended) can be unticked; the wizard keeps valid combinations (Agent 3 needs Agent 2, QA Audit needs Agent 2) and hides the steps a module no longer needs. Query Runner, Bug Filing, QA Assignment, QA Audit and Bug Report are optional, and each of their steps (or each section of the QA lead step) has a **Skip** button. Skipped tools are listed on the Review page and can be added later with "Load previous answers".
 3. **AI assistant** - Claude Code, GitHub Copilot, Cursor (writes `CLAUDE.md`, `.github/copilot-instructions.md`, `.cursor/rules/…`)
 4. **Task management (tickets)**: Azure Boards, Jira (Cloud/DC), GitHub Issues, GitLab, Linear, or **Other tool** (ServiceNow, Rally, Asana, ClickUp, Monday, Trello… as exported ticket files) → credentials + **Test connection** + field mapping (AC field, release naming, QA field)
 5. **Requirement documents** (Agent 1, pick several): Confluence, Azure DevOps Wiki, Notion (read from links), SharePoint / OneDrive, Word / PDF files, Google Docs (downloaded as Word/PDF), or "only the ticket"
