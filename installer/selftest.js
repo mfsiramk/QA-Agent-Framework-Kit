@@ -118,6 +118,14 @@ test('"Only the ticket" + "No designs" → no doc/design wording, no folders', (
   assert(!r.files['requirements-docs/README.md'] && !r.files['design-exports/README.md']);
 });
 
+test('Jira as a requirement source → jira docs connector + Agent 1 discovery note', () => {
+  const r = buildFiles(base({ taskManagement: { tool: 'jira', baseUrl: 'https://acme.atlassian.net', projectKey: 'WEB', fields: {} },
+    testManagement: { tool: 'xray', projectKey: 'WEB' },
+    requirementDocs: { picked: ['jira', 'confluence'], settings: { jira: { baseUrl: 'https://acme.atlassian.net', deployment: 'cloud', issueTypes: 'Epic, SRS' }, confluence: { baseUrl: 'https://acme.atlassian.net/wiki' } } } }));
+  assert.deepStrictEqual(r.cfg.requirementDocs.sources.map((s) => s.tool), ['jira', 'confluence']);
+  assert(/parent Epic and linked issues of the requirement types \(Epic, SRS\)/.test(r.files['agents/agent1-test-case-generator.md']));
+});
+
 test('Confluence as test management → connector, vocabulary, decision', () => {
   const r = buildFiles(base({ taskManagement: { tool: 'jira', baseUrl: 'https://acme.atlassian.net', projectKey: 'WEB', fields: {} },
     testManagement: { tool: 'confluence', baseUrl: 'https://acme.atlassian.net/wiki', deployment: 'cloud', spaceKey: 'QA' },

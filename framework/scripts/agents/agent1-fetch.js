@@ -101,6 +101,14 @@ const collectLinks = (texts) => [...new Set(texts.flatMap((t) => String(t || '')
     const known = UNREADABLE.find((x) => x.re.test(u));
     if (known) unreadable.push({ url: u, source: known.name, kind: known.kind, howToProvide: known.how, foundIn: 'ticket' });
   }
+  // Sources that can find requirement documents themselves (e.g. Jira: the ticket's parent Epic,
+  // linked "Requirement"/"SRS" issues, and Jira links in the text - filtered by issue type).
+  const ticketTexts = [workItem.description, workItem.acceptanceCriteria, ...children.flatMap((c) => [c.description, c.acceptanceCriteria]), ...comments.map((c) => c.text)];
+  for (const d of docs.filter((p) => typeof p.adapter.discover === 'function')) {
+    try {
+      for (const u of await d.adapter.discover(d.ctx, workItem, ticketTexts)) if (!docInputs.includes(u)) docInputs.push(u);
+    } catch (e) { console.log(`   ⚠️ ${d.adapter.label}: could not look for linked requirement issues: ${e.message}`); }
+  }
 
   // ── 4. Requirement documents ─────────────────────────────────────────────
   const requirementDocs = [];

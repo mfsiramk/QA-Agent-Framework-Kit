@@ -112,8 +112,9 @@ function matches(ctx, input) {
   const s = String(input || '').trim();
   if (/^\d+$/.test(s)) return true;
   if (/\/_wiki\//.test(s)) return false; // Azure DevOps wiki
+  if (/\/browse\/[A-Z][A-Z0-9_]+-\d+|\/jira\/|[?&]selectedIssue=/i.test(s)) return false; // Jira issue on the same atlassian.net site
   const base = String((ctx.config || {}).baseUrl || '');
-  try { if (base && new URL(s).host === new URL(base).host) return true; } catch { /* not a URL */ }
+  try { if (base && new URL(s).host === new URL(base).host && (!/\/wiki(\/|$)/.test(base) || /\/wiki\//.test(s))) return true; } catch { /* not a URL */ }
   return /atlassian\.net\/wiki\/|\/display\/|[?&]pageId=|\/pages\/\d+/.test(s);
 }
 
