@@ -30,7 +30,7 @@ function loadConfig() {
   loadEnvFile(path.join(ROOT, '.env'));
   const file = path.join(ROOT, 'qa-framework.config.json');
   if (!fs.existsSync(file)) {
-    console.error('❌ qa-framework.config.json not found. Run the setup wizard (Start-Installer.cmd in QA-Agent-Framework-Kit) first.');
+    console.error('❌ qa-framework.config.json not found. Run the setup wizard first (in QA-Agent-Framework-Kit: Start-Installer.cmd on Windows, Start-Installer.command on macOS).');
     process.exit(1);
   }
   _cfg = JSON.parse(fs.readFileSync(file, 'utf8'));

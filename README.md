@@ -30,7 +30,8 @@ A shareable, tool-agnostic version of the QA agent workflow, with a **web-based 
 ### Start the wizard
 
 - **Windows:** double-click **`Start-Installer.cmd`**
-- **macOS / Linux:** run `./start-installer.sh`
+- **macOS:** double-click **`Start-Installer.command`** (first time only: if macOS says it is from an unidentified developer, right-click it → **Open** → **Open**)
+- **macOS / Linux terminal:** `sh start-installer.sh` (or `./start-installer.sh`; if that says *permission denied*, run `chmod +x start-installer.sh` once)
 - or, from a terminal in this folder: `npm start`
 
 The launcher checks Node.js first. If Node is missing or too old, it says so and opens the download page. Then the browser opens at http://127.0.0.1:4600.
@@ -90,7 +91,8 @@ The audit is tool-agnostic: Agent 2/3 post marker comments (`[QA-AGENT:TEST-PLAN
 ```
 QA-Agent-Framework-Kit/
   Start-Installer.cmd   Windows launcher (checks Node.js, starts the wizard)
-  start-installer.sh    macOS / Linux launcher
+  Start-Installer.command  macOS double-click launcher (opens Terminal)
+  start-installer.sh    macOS / Linux terminal launcher
   README.html           shareable copy of this file (rebuild: npm install, then npm run readme)
   tools/                build-readme-html.js
   installer/            web wizard (zero dependencies)

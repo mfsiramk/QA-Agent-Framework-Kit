@@ -137,7 +137,8 @@ a{color:var(--brand)}li{margin:3px 0}
 <h3>Start the wizard</h3>
 <ul>
 <li><strong>Windows:</strong> double-click <strong><code>Start-Installer.cmd</code></strong></li>
-<li><strong>macOS / Linux:</strong> run <code>./start-installer.sh</code></li>
+<li><strong>macOS:</strong> double-click <strong><code>Start-Installer.command</code></strong> (first time only: if macOS says it is from an unidentified developer, right-click it → <strong>Open</strong> → <strong>Open</strong>)</li>
+<li><strong>macOS / Linux terminal:</strong> <code>sh start-installer.sh</code> (or <code>./start-installer.sh</code>; if that says <em>permission denied</em>, run <code>chmod +x start-installer.sh</code> once)</li>
 <li>or, from a terminal in this folder: <code>npm start</code></li>
 </ul>
 <p>The launcher checks Node.js first. If Node is missing or too old, it says so and opens the download page. Then the browser opens at <a href="http://127.0.0.1:4600" target="_blank" rel="noopener">http://127.0.0.1:4600</a>.</p>
@@ -239,7 +240,8 @@ a{color:var(--brand)}li{margin:3px 0}
 <h2>Layout</h2>
 <pre><code>QA-Agent-Framework-Kit/
   Start-Installer.cmd   Windows launcher (checks Node.js, starts the wizard)
-  start-installer.sh    macOS / Linux launcher
+  Start-Installer.command  macOS double-click launcher (opens Terminal)
+  start-installer.sh    macOS / Linux terminal launcher
   README.html           shareable copy of this file (rebuild: npm install, then npm run readme)
   tools/                build-readme-html.js
   installer/            web wizard (zero dependencies)
