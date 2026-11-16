@@ -466,7 +466,7 @@ ${[cfg.modules.agent1 && `${d.task.label} ${d.task.vocab.item} ──Agent 1─�
 ${list(d.decisions)}
 
 ## Changing anything later
-Run the setup wizard again (\`Start-Installer.cmd\` in the QA-Agent-Framework-Kit folder), click **Load previous answers**, and pick this folder - your answers are in \`installer-answers.json\` (no secrets).
+Run the setup wizard again (in the QA-Agent-Framework-Kit folder: \`Start-Installer.cmd\` on Windows, \`Start-Installer.command\` on macOS), click **Load previous answers**, and pick this folder - your answers are in \`installer-answers.json\` (no secrets).
 `;
 }
 

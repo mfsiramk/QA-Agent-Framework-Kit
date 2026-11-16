@@ -2,3 +2,4 @@
 *.sh text eol=lf
 *.cmd text eol=crlf
 *.webp binary
+*.command text eol=lf

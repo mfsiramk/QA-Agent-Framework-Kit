@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * QA Agent Framework - interactive installer.
- *   Start-Installer.cmd (Windows) / ./start-installer.sh (macOS, Linux) / npm start
+ *   Start-Installer.cmd (Windows) / Start-Installer.command or sh start-installer.sh (macOS, Linux) / npm start
  *   → opens http://127.0.0.1:4600
  *   npm start -- --no-open --port=4700
  *
