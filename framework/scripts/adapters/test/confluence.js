@@ -17,7 +17,7 @@
  *          (the same as the Confluence requirement-docs connector)
  */
 
-const { request, basicAuth, bearer, htmlToText } = require('../../core/http.js');
+const { request, basicAuth, bearer, htmlToText, atlassianUrl } = require('../../core/http.js');
 
 const SERVICE = 'Confluence';
 const COLS = ['ID', 'Title', 'Priority', 'Preconditions', 'Steps', 'Expected Result', 'Test Data', 'Tags', 'AC Ref'];
@@ -26,7 +26,7 @@ const pending = new Map(); // planId -> { title, url, version, suites: Map(name 
 function conn(ctx) {
   const c = ctx.config || {};
   const e = ctx.env || {};
-  const baseUrl = String(c.baseUrl || '').replace(/\/+$/, '');
+  const baseUrl = atlassianUrl(c.baseUrl, 'confluence'); // Cloud: adds the /wiki that is often forgotten
   if (!baseUrl) throw new Error('Confluence: the Confluence URL is not configured. Fill it in the installer.');
   if (!c.spaceKey) throw new Error('Confluence: the space key for test plans is not configured.');
   if (String(c.deployment || 'cloud').toLowerCase() === 'server') {

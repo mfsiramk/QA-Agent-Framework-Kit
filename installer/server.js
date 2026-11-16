@@ -53,13 +53,27 @@ function mask(files) {
   return out;
 }
 
-async function testConnection({ kind, tool, config, secrets, task }) {
+/** Tokens saved in a previous installation's .env (used when the field was left empty to keep them). */
+function keptSecrets(target) {
+  const out = {};
+  try {
+    const f = path.join(path.resolve(String(target || '')), '.env');
+    if (target && fs.existsSync(f)) for (const line of fs.readFileSync(f, 'utf8').split(/\r?\n/)) { const m = line.match(/^([A-Z0-9_]+)=(.*)$/); if (m && m[2].trim()) out[m[1]] = m[2].trim(); }
+  } catch { /* no previous install */ }
+  return out;
+}
+
+/** Pasted values often carry spaces or line breaks - a token with a trailing space is rejected (401). */
+const cleanSecrets = (s) => Object.fromEntries(Object.entries(s || {}).map(([k, v]) => [k, String(v ?? '').replace(/[\r\n\t]/g, '').trim()]).filter(([, v]) => v));
+
+async function testConnection({ kind, tool, config, secrets, task, target }) {
   if (!/^(task|test|docs|design|code)$/.test(kind) || !/^[a-z0-9-]+$/.test(tool || '')) return { ok: false, message: 'Unknown tool.' };
   const p = path.join(ADAPTERS, kind, `${tool}.js`);
   if (!fs.existsSync(p)) return { ok: false, message: `No connector for ${tool}.` };
+  delete require.cache[require.resolve(p)]; // always test with the connector code on disk
   const adapter = require(p);
   try {
-    return await adapter.testConnection({ config: config || {}, env: { ...secrets }, task: task || {}, root: os.tmpdir() });
+    return await adapter.testConnection({ config: config || {}, env: { ...keptSecrets(target), ...cleanSecrets(secrets) }, task: task || {}, root: os.tmpdir() });
   } catch (e) {
     return { ok: false, message: e.message, fix: 'Check the values above and try again.' };
   }

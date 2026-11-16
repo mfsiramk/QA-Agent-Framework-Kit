@@ -208,7 +208,8 @@ function derive(cfg, decisions) {
 
 function envFile(secrets, cfg) {
   const lines = [`# ${cfg.organization.product} QA Agents - secrets (generated ${new Date().toISOString().slice(0, 10)})`, '# Never commit this file. Replace a value here when a token expires, then run: npm run verify', ''];
-  for (const [k, v] of Object.entries(secrets || {})) if (k) lines.push(`${k}=${String(v ?? '').replace(/\r?\n/g, '')}`);
+  // Trim pasted values: a token copied with a trailing space or line break is rejected (401).
+  for (const [k, v] of Object.entries(secrets || {})) if (k) lines.push(`${k}=${String(v ?? '').replace(/[\r\n\t]/g, '').trim()}`);
   return lines.join('\n') + '\n';
 }
 
