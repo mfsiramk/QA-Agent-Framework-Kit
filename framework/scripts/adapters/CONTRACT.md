@@ -170,7 +170,19 @@ Per tool:
 | `listTestCases(ctx, plan)` → TestCase(listed)[] | re-reads tags from the tool (human may have edited them) |
 | `finalize(ctx, plan)` → `{ files? }` | csv adapter writes the import file here; others no-op |
 
-## Documents (`adapters/docs/<id>.js`) - confluence (write)
+## Documents (`adapters/docs/<id>.js`) - confluence, ado-wiki, jira, notion, local
+
+Read side (all docs adapters): `testConnection(ctx)`, `matches(ctx, input)` (does this link/key/path belong
+to me?) and `fetchDocument(ctx, input)` → `{ title, url, text, sections: [{ heading, text }], needsDirectRead? }`.
+Agent 1 routes every link it finds in a ticket to the first adapter whose `matches` says yes.
+
+Optional `discover(ctx, workItem, texts)` → `[link]`: requirement documents an adapter can find by itself for a
+ticket. **jira** implements it: the ticket's parent and linked issues (when the task tool is the same Jira) plus
+`/browse/KEY-n` links in the ticket text, kept only if their issue type is in `config.issueTypes`
+(default `Epic, Requirement, SRS`). jira's `fetchDocument` also downloads `.docx/.pdf/.md/.txt/.html` attachments to
+`output/temp/jira-attachments/<KEY>/` and adds their sections (PDFs: `needsDirectRead`).
+
+Write side (confluence only):
 
 | Function | Purpose |
 |---|---|

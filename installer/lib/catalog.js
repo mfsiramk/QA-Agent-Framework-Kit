@@ -90,6 +90,7 @@ const TEST_TOOLS = [
 const DOC_TOOLS = [
   { id: 'confluence', adapter: 'confluence', mode: 'api', label: 'Confluence', icon: '📘', desc: 'Pages are read straight from the link.' },
   { id: 'ado-wiki', adapter: 'ado-wiki', mode: 'api', label: 'Azure DevOps Wiki', icon: '📗', desc: 'Wiki pages read from the link (uses your Azure DevOps token).' },
+  { id: 'jira', adapter: 'jira', mode: 'api', label: 'Jira (SRS / requirement issues, Epics)', icon: '🔷', desc: 'Requirement issues and their Word/PDF attachments. The ticket\'s parent Epic and linked requirement issues are found automatically.' },
   { id: 'sharepoint', adapter: 'local', mode: 'file', label: 'SharePoint / OneDrive (Word, PDF)', icon: '🟦', desc: 'Download as Word or PDF, then give the file path.', prepare: 'Open the document → File → Save a copy / Download → Word (.docx). Save it in the installation\'s requirements-docs folder.' },
   { id: 'word', adapter: 'local', mode: 'file', label: 'Word / PDF files (shared drive, email)', icon: '📄', desc: 'Give the file path. .docx and PDF are read directly.', prepare: 'Save the latest version as .docx (best) or PDF. Old .doc files: open in Word → Save As → .docx.' },
   { id: 'google-docs', adapter: 'local', mode: 'file', label: 'Google Docs', icon: '🟨', desc: 'Download as Word, then give the file path.', prepare: 'Open the doc → File → Download → Microsoft Word (.docx).' },

@@ -397,6 +397,11 @@
       seen.add(t.adapter);
       section.settings[t.adapter] = section.settings[t.adapter] || {};
       if (t.adapter === 'ado-wiki' && C.taskManagement.tool === 'ado') out.push(note('info', 'Azure DevOps Wiki uses your Azure Boards organization, project and token - just test the connection.'));
+      if (kind === 'docs' && t.adapter === 'jira' && C.taskManagement.tool === 'jira') {
+        const s = section.settings.jira;
+        if (!s.baseUrl) { s.baseUrl = C.taskManagement.baseUrl || ''; s.deployment = C.taskManagement.deployment || 'cloud'; }
+        out.push(note('info', 'Uses your Jira connection from the Task management step - just confirm which issue types hold your requirements and test the connection.'));
+      }
       out.push(toolPanel(kind, t, section.settings[t.adapter], `${kind}:${t.adapter}`));
     }
     if (files.length) {
